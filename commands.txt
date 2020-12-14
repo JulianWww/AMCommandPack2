@@ -1,0 +1,1 @@
+pydoctor --make-html --html-output=doc --add-package=AMcomandPack
