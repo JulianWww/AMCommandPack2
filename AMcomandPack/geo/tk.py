@@ -4,11 +4,26 @@ adds the syntax and coordinate changes creatid in AM to a clean setup
 """
 import tkinter
 import typing
+from math import cos, sin, sqrt, pi
+from AMcomandPack.geo.extensions.extensionFiles import SceneElement
 
 __all__ = ["Canvas", "Tk"]
 
 imageType = typing.NewType("image", tkinter.PhotoImage)
 "the type used for internal typing of the tkinter.photoImage"
+
+
+class Tk(tkinter.Tk):
+    """extended Tk
+
+    an overide for tkinter tk with the custom functionaliy form am
+    currently empty
+    """
+    ready = False
+    def mainloop(self, *args, **kwargs):
+        "see tkinter mainloop"
+        self.ready = True
+        tkinter.Tk.mainloop(self, *args, **kwargs)
 
 
 class Canvas(tkinter.Canvas):
@@ -17,7 +32,9 @@ class Canvas(tkinter.Canvas):
     a overide to the tk canvas with all the functionality
     of oure AM write function just cleaner
     """
-    def __init__(self, *args: tuple, **kwargs: dict):
+    elements = []
+    """a list containing scene elements"""
+    def __init__(self, master:typing.NewType("Tk", Tk),  *args: tuple, **kwargs: dict):
         """contructor 
 
         @param master: the master as discribed in tk doc\n
@@ -44,10 +61,20 @@ class Canvas(tkinter.Canvas):
         self.setOrigin(kwargs["origin"] if "origin" in kwargs.keys() else (0,0))
         try: kwargs.pop("origin")
         except: pass
+        assert isinstance(master, Tk), f"master must be am.geo.Tk not {type(master)}"
+        self.master = master
+        "master tk instance"
+
+        if not "bd" in kwargs: kwargs["bd"] = 0
 
 
-        super(Canvas, self).__init__(*args, **kwargs)
+        super(Canvas, self).__init__(master, *args, **kwargs)
     
+    def addSceneElement(self, element) -> None:
+        """add a scene element to canvas
+            """
+        assert isinstance(element, SceneElement), f"canot add {type(element)} to canvas using this method"
+        element._addToScene(self)
 
     def setOrigin(self, *origin: typing.Tuple[int, int]) -> None:
         """set the origin of the canvas
@@ -76,6 +103,15 @@ class Canvas(tkinter.Canvas):
         dx, dy = self.origin
         return (x+dx, dy-y)
     
+    def rget_cor(self, x: int, y:int) -> typing.Tuple[int, int]: 
+        """reverse of get_cor
+            """
+        assert hasattr(x, "__int__"), f"param x must be int not {type(x)}"
+        assert hasattr(y, "__int__"), f"param y must be int not {type(y)}"
+        x, y = int(x), int(y)
+        dx, dy = self.origin
+        return (x-dx, -dy+y)
+
     def create_rectangle(self, x: int, y: int, x2: int, y2: int, fillColor: str="white", outlineColor:str="black") -> None:
         """crate a rectange
 
@@ -91,9 +127,9 @@ class Canvas(tkinter.Canvas):
         """
         x, y = self.get_cor(x,y)
         x2, y2 = self.get_cor(x2, y2)
-        tkinter.Canvas.create_rectangle(self, x, y, x2, y2, fill=fillColor, outline=outlineColor)
+        return tkinter.Canvas.create_rectangle(self, x, y, x2, y2, fill=fillColor, outline=outlineColor)
 
-    def create_square(self, x:int, y:int, a:int=1, fillColor: str="white", outlineColor:str="black") ->None:
+    def create_square(self, x:int, y:int, a:int=1, fillColor: str="white", outlineColor:str="black", rotation:float=0, **kwargs) ->int:
         """creates a square
 
             creats a quare around x, y with side len a
@@ -104,15 +140,29 @@ class Canvas(tkinter.Canvas):
             @param a: the side length of the suqare defaults to 1
             @type a: int
 
+            @param rotation: the rotation in radiens witch will rotate the square
+            @type rotation: float
+
             @param fillColor: the color to fill the rectangle with
             @param outlineColor: the outline color of the rectangle"""
+
+        assert hasattr(x, "__float__"), f"rotation must be float not {type(rotation)}"
         assert hasattr(x, "__int__"), f"x must be an int not {type(x)}"
         assert hasattr(y, "__int__"), f"y must be an int not {type(y)}"
         assert hasattr(a, "__int__"), f"a must be an int not {type(a)}"
-        a, x, y = int(a)/2, int(x), int(y)
-        self.create_rectangle(x+a, y+a, x-a, y-a, fillColor=fillColor, outlineColor=outlineColor)
+        a, x, y = int(a)/2*sqrt(2), int(x), int(y)
+        xpos, ypos = self.get_cor(x, y)
 
-    def create_line(self, x: int, y: int, x2: int, y2: int, color: str="black", width: int = 1) -> None:
+        rotation += pi/4
+        sideA, sideB = a*cos(rotation), a*sin(rotation)
+
+        return tkinter.Canvas.create_polygon(self,  (xpos + sideA, ypos + sideB),
+                                                    (xpos - sideB, ypos + sideA),
+                                                    (xpos - sideA, ypos - sideB),
+                                                    (xpos + sideB, ypos - sideA),
+                                                    fill = fillColor, outline=outlineColor, **kwargs)
+
+    def create_line(self, x: int, y: int, x2: int, y2: int, color: str="black", width: int = 1) -> int:
         """crates line
 
         crates a line form (x, y) to (x2, y2)
@@ -134,9 +184,9 @@ class Canvas(tkinter.Canvas):
         assert hasattr(width, "__init__"), f"width must be int not {type(width)}"
         x, y = self.get_cor(x, y)
         x2, y2 = self.get_cor(x2, y2)
-        tkinter.Canvas.create_line(self, x, y, x2, y2, fill=color, width=width)
+        return tkinter.Canvas.create_line(self, x, y, x2, y2, fill=color, width=width)
 
-    def create_oval(self, x: int, y: int, x2: int, y2: int, color: str="white", outline: str="black") ->None:
+    def create_oval(self, x: int, y: int, x2: int, y2: int, color: str="white", outline: str="black") ->int:
         """crates line
 
         crates an oval form (x, y) to (x2, y2)
@@ -156,9 +206,9 @@ class Canvas(tkinter.Canvas):
         """
         x, y = self.get_cor(x,y)
         x2, y2 = self.get_cor(x2, y2)
-        tkinter.Canvas.create_oval(self, x, y, x2, y2, fill=color, outline=outline)
+        return tkinter.Canvas.create_oval(self, x, y, x2, y2, fill=color, outline=outline)
 
-    def create_circle(self, x: int, y: int, r: int, color: str="white", outline: str="black") ->None:
+    def create_circle(self, x: int, y: int, r: int, color: str="white", outline: str="black") ->int:
         """create a circle
 
             crate a circle around (x, y) with radius r and color color aswellas outlien color outline
@@ -177,7 +227,7 @@ class Canvas(tkinter.Canvas):
         """
         return self.create_oval(x+r, y+r, x-r, y-r, color, outline)
     
-    def create_polygon(self, *points: typing.Tuple[typing.Tuple[int, int]], color: str="white", outline: str="black", width:int=1) ->None:
+    def create_polygon(self, *points: typing.Tuple[typing.Tuple[int, int]], color: str="white", outline: str="black", width:int=1) ->int:
         """crates a poligon
 
             crate a poligon around the points passed a tupples via *points
@@ -202,9 +252,9 @@ class Canvas(tkinter.Canvas):
             nx, ny = self.get_cor(x, y)
             new.append(nx)
             new.append(ny)
-        tkinter.Canvas.create_polygon(self, new, fill=color, outline=outline, width = int(width))
+        return tkinter.Canvas.create_polygon(self, new, fill=color, outline=outline, width = int(width))
 
-    def create_bitmap(self, x: int, y: int, bit: str)->None:
+    def create_bitmap(self, x: int, y: int, bit: str)->int:
         """crate a bitmap
 
             The method create_bitmap() can be be used to include a bitmap on a canvas. The following bitmaps are available on all platforms:
@@ -219,9 +269,9 @@ class Canvas(tkinter.Canvas):
             @type bit: i dont have the fogierst idear
             """
         x, y = self.get_cor(x, y)
-        tkinter.Canvas.create_bitmap(x, y, bit)
+        return tkinter.Canvas.create_bitmap(x, y, bit)
     
-    def create_image(self, x:int, y:int, img: imageType, **kwargs)->None:
+    def create_image(self, x:int, y:int, img: imageType, **kwargs)->int:
         """render image
 
             The Canvas method create_image(x0,y0, options ...) is used to draw an image on a canvas. create_image doesn't accept an image directly. It uses an object which is created by the PhotoImage() method. The PhotoImage class can only read GIF and PGM/PPM images from files
@@ -241,12 +291,11 @@ class Canvas(tkinter.Canvas):
         assert hasattr(x, "__int__"), f"x must be int not {type(x)}"
         assert hasattr(y, "__int__"), f"y must be int not {type(y)}"
         assert type(img) is tkinter.PhotoImage, f"img must be photoImage not {type(img)}"
-        print(type(img))
-        kwargs["image"] = img
+        #kwargs["image"] = img
         x, y = self.get_cor(x, y)
-        return tkinter.Canvas.create_image(self, x, y, image=img)
+        return tkinter.Canvas.create_image(self, x, y, image=img, anchor=tkinter.CENTER, **kwargs)
 
-    def create_text(self, x: int, y: int, **kwargs) ->None:
+    def create_text(self, x: int, y: int, **kwargs) ->int:
         """create a text object
 
             crate tk text object
@@ -260,9 +309,9 @@ class Canvas(tkinter.Canvas):
         assert hasattr(x, "__int__"), f"x must be and int not {type(x)}"
         assert hasattr(y, "__int__"), f"y must be and int not {type(y)}"
         x, y = self.get_cor(x, y)
-        tkinter.Canvas.create_text(self, x, y, **kwargs)
+        return tkinter.Canvas.create_text(self, x, y, **kwargs)
 
-    def create_arc(self, x: int, y: int, x2:int, y2: int, **kwargs) ->None:
+    def create_arc(self, x: int, y: int, x2:int, y2: int, **kwargs) ->int:
         """create an arc
 
             creats an arc from x, y to x2, y2
@@ -279,9 +328,9 @@ class Canvas(tkinter.Canvas):
         x, y = self.get_cor(x, y)
         x2, y2 = self.get_cor(x2, y2)
 
-        tkinter.Canvas.create_arc(self, x, y, x2, y2, **kwargs)
+        return tkinter.Canvas.create_arc(self, x, y, x2, y2, **kwargs)
 
-    def plot(self, fun, top:int=500, bottom:int=-500, scale:float=1, dx:float =0, dy:float=0, color: str="black", width:int =1) -> None:
+    def plot(self, fun, top:int=500, bottom:int=-500, scale:float=1, dx:float =0, dy:float=0, color: str="black", width:int =1):
         """plots a function
 
             plots a function 
@@ -306,19 +355,21 @@ class Canvas(tkinter.Canvas):
 
         func = lambda x: fun((x-dx)/scale)*scale + dx
         x, y = bottom, func(bottom)
+        elements = []
         while bottom < top:
             bottom += 1
             newx, newy = bottom, func(bottom)
-            self.create_line(x, y, newx, newy, color, width)
+            elements.append(self.create_line(x, y, newx, newy, color, width))
+        return elements
 
-
-
-
-class Tk(tkinter.Tk):
-    """extended Tk
-
-    an overide for tkinter tk with the custom functionaliy form am
-    currently empty
-    """
-    @staticmethod
-    def _(a):return
+    def coords(self, key: int) -> typing.List[typing.Tuple[int, int]]:
+        """get the coordinate of render
+        
+            get the coordinates of the render key: int
+            @returns: list<tuple<int, int>> list of positions of the in new sys"""
+        
+        coords = tkinter.Canvas.coords(self, key)
+        res = []
+        for val in range(0, len(coords), 2):
+            res.append(self.rget_cor(res[val], res[val+1]))
+        return res
